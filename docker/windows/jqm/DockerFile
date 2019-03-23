@@ -29,7 +29,7 @@ RUN mvn install -DskipTests=%SKIP_TESTS% %MVN_SETTINGS% && mkdir C:\TEMP && echo
 ###############################################################################
 ## Powershell so as to unzip
 ###############################################################################
-FROM microsoft/powershell:nanoserver-${WINDOWS_TAG} AS installer
+FROM mcr.microsoft.com/powershell:nanoserver-${WINDOWS_TAG} AS installer
 
 SHELL ["pwsh.exe", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 

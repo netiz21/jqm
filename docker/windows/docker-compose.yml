@@ -1,19 +1,5 @@
 version: "3.4"
 services:
-    jre:
-        build:
-            context: ./java
-            dockerfile: DockerFile.jre
-            labels:
-                com.enioka.description: "build helper - OpenJDK JRE for windows nano"
-            args:
-                - OJDK_VERSION=181-1
-                - OJDK_BUILD=b13
-                - OJDK_SHA256=dd7d2ea7951c06857523e95359e5e94630039a1eae5b5223e4b8c308afc95ebb
-                - WINDOWS_TAG=${WINDOWS_TAG}
-        image: enioka/buildhelpers:jre-1.8.0-${WINDOWS_TAG:?tag must be given}
-        hostname: jre
-
     jdk:
         build:
             context: ./java
@@ -21,11 +7,12 @@ services:
             labels:
                 com.enioka.description: "build helper - OpenJDK JDK for windows nano"
             args:
-                - OJDK_VERSION=181-1
-                - OJDK_BUILD=b13
-                - OJDK_SHA256=dd7d2ea7951c06857523e95359e5e94630039a1eae5b5223e4b8c308afc95ebb
+                - OJDK_SHA256=7F34BB39C19A82D453A0DC2182BEE6B16182E9475A4B22D4143172B26EA68E0D
                 - WINDOWS_TAG=${WINDOWS_TAG}
-        image: enioka/buildhelpers:jdk-1.8.0-${WINDOWS_TAG:?tag must be given}
+                - JAVA_VERSION=11
+                - OJDK_PATH_VERSION=11.0.2-1
+                - OJDK_ZIP_VERSION=11.0.2.7-1
+        image: enioka/buildhelpers:jdk-1.11-${WINDOWS_TAG:?tag must be given}
         hostname: jdk
 
     mvn:
@@ -36,8 +23,9 @@ services:
                 com.enioka.description: "build helper - Maven build for windows nano"
             args:
                 - WINDOWS_TAG=${WINDOWS_TAG}
-                - MVN_VERSION=3.5.4
-                - MVN_MD5=235db716537989e9e949e5bf23f965c0
+                - MVN_VERSION=3.6.0
+                - MVN_SHA512=7d14ab2b713880538974aa361b987231473fbbed20e83586d542c691ace1139026f232bd46fdcce5e8887f528ab1c3fbfc1b2adec90518b6941235952d3868e9
+                - JAVA_VERSION=1.11
         image: enioka/buildhelpers:maven-3-${WINDOWS_TAG:?tag must be given}
         hostname: maven
 

@@ -9,6 +9,7 @@
 param(
     # Set to upload the resulting JQM image to the Hub.
     [switch]$Push,
+    [switch]$PushSubImages,
     # Set to use a different repository and image name when pushing.
     [string]$ImageName = "marcanpilami/test",
     # First part of the tag (the one which will be visible through a manifest)
@@ -69,7 +70,7 @@ foreach (${Target} in ${targets}.targets.target) {
                     }
                 }
 
-                if ($Push) {
+                if ($Push -or $PushSubImages) {
                     Write-Progress "$Description build on ${env:DOCKER_HOST} - sub-tag is ${Architecture}" -id 1 -CurrentOperation "Pushing image $preBuild"
                     if ($PSCmdlet.ShouldProcess($preBuild, 'Compose Push')) {
                         docker-compose -f $Compose --log-level warning push $preBuild >>$LogFile

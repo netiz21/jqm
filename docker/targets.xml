@@ -1,23 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- This file is versioned and specific to each branch. It specifies which OS can be built by the branch, and how -->
 <targets>
-    <target>
-        <description>Windows Server 1709</description>
-        <tag>windows-1709</tag>
-        <compose>windows/docker-compose.yml</compose>
-        <buildArgs>
-            <arg>
-                <key>WINDOWS_TAG</key>
-                <value>1709</value>
-            </arg>
-        </buildArgs>
-        <subTargets>
-            <target>jre</target>
-            <target>jdk</target>
-            <target>mvn</target>
-        </subTargets>
-    </target>
-    <target>
+    <!--<target>
         <description>Windows Server 1803</description>
         <tag>windows-1803</tag>
         <compose>windows/docker-compose.yml</compose>
@@ -32,12 +16,27 @@
             <target>jdk</target>
             <target>mvn</target>
         </subTargets>
-    </target>
+    </target>-->
     <target>
+        <description>Windows Server 1809</description>
+        <tag>windows-1809</tag>
+        <compose>windows/docker-compose.yml</compose>
+        <buildArgs>
+            <arg>
+                <key>WINDOWS_TAG</key>
+                <value>1809</value>
+            </arg>
+        </buildArgs>
+        <subTargets>
+            <target>jdk</target>
+            <target>mvn</target>
+        </subTargets>
+    </target>
+    <!--<target>
         <description>Linux x64</description>
         <tag>linux-alpine</tag>
         <dockerfile>linux/Dockerfile</dockerfile>
         <buildArgs></buildArgs>
         <subTargets></subTargets>
-    </target>
+    </target>-->
 </targets>

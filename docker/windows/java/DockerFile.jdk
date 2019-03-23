@@ -1,49 +1,58 @@
 ARG WINDOWS_TAG
 
-FROM microsoft/powershell:nanoserver-${WINDOWS_TAG} as installer
+FROM mcr.microsoft.com/windows/servercore:${WINDOWS_TAG} AS dllsource
+# only used because of https://bugs.openjdk.java.net/browse/JDK-8218486 - IE dll referenced in openjdk...
+
+
+
+FROM mcr.microsoft.com/powershell:nanoserver-${WINDOWS_TAG} as installer
 
 SHELL ["pwsh.exe", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
 # https://github.com/ojdkbuild/ojdkbuild/releases
-ARG JAVA_VERSION=1.8.0
-ARG OJDK_VERSION
-ARG OJDK_BUILD
+ARG JAVA_VERSION=11.0.2
+ARG JAVA_VERSION
+ARG OJDK_PATH_VERSION
+ARG OJDK_ZIP_VERSION
 ARG OJDK_SHA256
 
 ENV JAVA_HOME=C:\\ojdk \
-	OJDK_ZIP=java-${JAVA_VERSION}-openjdk-${JAVA_VERSION}.${OJDK_VERSION}.${OJDK_BUILD}.ojdkbuild.windows.x86_64.zip
+    OJDK_ZIP=java-${JAVA_VERSION}-openjdk-${OJDK_ZIP_VERSION}.windows.ojdkbuild.x86_64.zip
 
 RUN  mkdir /TEMP >$null; \
-	$url = ('https://github.com/ojdkbuild/ojdkbuild/releases/download/{0}.{1}/{2}' -f $env:JAVA_VERSION, $env:OJDK_VERSION, $env:OJDK_ZIP); \
-	Write-Host "Downloading [${url}]"; \
-	Invoke-WebRequest -Uri $url -OutFile '/TEMP/ojdkbuild.zip' -UseBasicParsing ; \
-	Write-Host ('Verifying sha256 ({0}) ...' -f $env:OJDK_SHA256); \
-	if ((Get-FileHash /TEMP/ojdkbuild.zip -Algorithm sha256).Hash -ne $env:OJDK_SHA256) { \
-	Write-Host 'FAILED!'; \
-	exit 1; \
-	};
+    $url = ('https://github.com/ojdkbuild/ojdkbuild/releases/download/{0}/{1}' -f $env:OJDK_PATH_VERSION, $env:OJDK_ZIP); \
+    Write-Host "Downloading [${url}]"; \
+    Invoke-WebRequest -Uri $url -OutFile '/TEMP/ojdkbuild.zip' -UseBasicParsing ; \
+    Write-Host ('Verifying sha256 ({0}) ...' -f $env:OJDK_SHA256); \
+    if ((Get-FileHash /TEMP/ojdkbuild.zip -Algorithm sha256).Hash -ne $env:OJDK_SHA256) { \
+    Write-Host 'FAILED!'; \
+    exit 1; \
+    };
 
 RUN	Write-Host "Expanding ..."; \
-	Expand-Archive /TEMP/ojdkbuild.zip -DestinationPath C:/TEMP/OJDK/; \
-	Write-Host "Renaming ..."; \
-	Move-Item "C:/TEMP/OJDK/jav*" $env:JAVA_HOME; \
-	Write-Host "Verifying install ..."; \
-	${env:Path}=\"${env:Path};C:/ojdk/bin\"; \
-	Write-Host "  java -version"; java -version; \
-	Write-Host "  javac -version"; javac -version; \
-	Write-Host "Cleaning up ..."; \
-	Remove-Item -recurse -force /TEMP/; \
-	Write-Host "Complete.";
+    Expand-Archive /TEMP/ojdkbuild.zip -DestinationPath C:/TEMP/OJDK/; \
+    Write-Host "Renaming ..."; \
+    Move-Item "C:/TEMP/OJDK/jav*" $env:JAVA_HOME; \
+    Write-Host "Verifying install ..."; \
+    ${env:Path}=\"${env:Path};C:/ojdk/bin\"; \
+    Write-Host "  java -version"; java -version; \
+    Write-Host "  javac -version"; javac -version; \
+    Write-Host "Cleaning up ..."; \
+    Remove-Item -recurse -force /TEMP/; \
+    Write-Host "Complete.";
+
+COPY --from=dllsource C:/Windows/system32/urlmon.dll C:/Windows/system32/advapi32.dll C:/Windows/system32/
 
 
 
-
-FROM microsoft/nanoserver:${WINDOWS_TAG}
+FROM mcr.microsoft.com/windows/nanoserver:${WINDOWS_TAG}
 
 COPY --from=installer C:/ojdk/ C:/ojdk/
 
-RUN setx JAVA_HOME C:\\ojdk && setx PATH %PATH%;C:\\ojdk\\bin
+USER ContainerAdministrator
+RUN setx /M JAVA_HOME C:\\ojdk && setx /M PATH %PATH%;C:\\ojdk\\bin
+USER ContainerUser
 
 LABEL maintainer="Enioka" \
-	readme.md="https://github.com/enioka/jqm/blob/master/README.md" \
-	description="OpenJDK JDK for Windows Nano (the official image is only for long term versions)"
+    readme.md="https://github.com/enioka/jqm/blob/master/README.md" \
+    description="OpenJDK JDK for Windows Nano (the official image is only for long term versions)"
