@@ -17,6 +17,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import com.enioka.jqm.model.JobInstance;
 import com.enioka.jqm.model.Queue;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class DbConn implements Closeable
 {
     private static Logger jqmlogger = LoggerFactory.getLogger(DbConn.class);
+    private static Calendar utcZone = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
 
     private Db parent;
     Connection _cnx;
@@ -104,7 +106,7 @@ public class DbConn implements Closeable
             QueryResult qr = new QueryResult();
             qr.nbUpdated = ps.executeUpdate();
             qr.generatedKey = qp.preGeneratedKey;
-            if (query_key.contains("insert") && !query_key.equals("history_insert_with_end_date"))
+            if (qr.generatedKey == null && query_key.contains("insert") && !query_key.equals("history_insert_with_end_date"))
             {
                 ResultSet gen = ps.getGeneratedKeys();
                 if (gen.next())
@@ -118,7 +120,7 @@ public class DbConn implements Closeable
                     }
             }
 
-            jqmlogger.debug("Updated rows: {}", qr.nbUpdated);
+            jqmlogger.debug("Updated rows: {}. Key: {}. Generated ID: {}", qr.nbUpdated, query_key, qr.generatedKey);
             return qr;
         }
         catch (SQLException e)
@@ -500,9 +502,13 @@ public class DbConn implements Closeable
         try
         {
             if (q.forUpdate)
+            {
                 ps = _cnx.prepareStatement(q.sqlText, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+            }
             else
+            {
                 ps = _cnx.prepareStatement(q.sqlText, this.parent.getAdapter().keyRetrievalColumn());
+            }
         }
         catch (SQLException e)
         {
@@ -541,7 +547,7 @@ public class DbConn implements Closeable
             else if (Boolean.class == value.getClass())
                 s.setBoolean(position, (Boolean) value);
             else if (value instanceof Calendar)
-                s.setTimestamp(position, new Timestamp(((Calendar) value).getTimeInMillis()));
+                s.setTimestamp(position, new Timestamp(((Calendar) value).getTimeInMillis()), utcZone);
             else if (value instanceof List<?>)
             {
                 Array a;
@@ -587,7 +593,7 @@ public class DbConn implements Closeable
         if (rs.getTimestamp(colIdx) != null)
         {
             c = Calendar.getInstance();
-            c.setTimeInMillis(rs.getTimestamp(colIdx).getTime());
+            c.setTimeInMillis(rs.getTimestamp(colIdx, utcZone).getTime());
         }
         return c;
     }
@@ -602,8 +608,9 @@ public class DbConn implements Closeable
         try
         {
             DatabaseMetaData m = this._cnx.getMetaData();
-            log.info("Database driver {} version {} on database {} version {}.{} (product {})", m.getDriverName(), m.getDriverVersion(),
-                    m.getDatabaseProductName(), m.getDatabaseMajorVersion(), m.getDatabaseMinorVersion(), m.getDatabaseProductVersion());
+            log.info("Database driver {} version {} on database {} version {}.{} (product {}). Adapter is {}.", m.getDriverName(),
+                    m.getDriverVersion(), m.getDatabaseProductName(), m.getDatabaseMajorVersion(), m.getDatabaseMinorVersion(),
+                    m.getDatabaseProductVersion(), parent.getAdapter().getClass().getName());
         }
         catch (SQLException e1)
         {

@@ -15,7 +15,8 @@ Major changes
 ++++++++++++++++++++++++++++
 
 * All libraries have been updated to their latest versions. This is particularly important for anyone exposing JQM web services, as this comes with much increased security.
-* Web APIs: added IPv6 compatibility and latest TLS versions (on Java version supporting them).
+* Engine: added Java 11 and 12 support. Please consider using 11 for long term projects as it is a LTS release.
+* Web APIs: added IPv6 compatibility and latest TLS versions (on Java versions supporting them).
 * Web APIs: better multiple interface handling.
 * CLI: entirely re-written using a more understandable `verb-noun --options` style for commands (and a far more maintainable code behind this).
 
@@ -23,6 +24,9 @@ Minor changes
 ++++++++++++++++++++++++++++
 
 * Engine: Updated to latest Maven engine, adding latest pom.xml format compatibility.
+* Engine: MySQL >= 8 and MariaDB >= 10.3 do not use a special ID generator anymore, thanks to improvements in InnoDB.
+* Test: client-side certificate authentication is now properly tested.
+* Test: MariaDB, MySQL and PostgreSQL have been added to the already present HSQLDB in the automated test suite run on each commit or PR.
 
 Breaking changes
 +++++++++++++++++++
@@ -38,7 +42,7 @@ The breaking changes are:
 Deprecated
 +++++++++++++++
 
-* The Maven artifact named "jqm-api-client-hibernate" has been removed, and replaced by a redirection to the jqm-api-cient-jdbc" artifact. The redirection will be removed in a future release.
+* The Maven artifact named "jqm-api-client-hibernate" has been removed, and replaced by a redirection to the jqm-api-client-jdbc" artifact. The redirection will be removed in a future release.
 * JqmClient.resumeJob is deprecated in favor of the strictly equivalent resumeQueuedJob (to avoid confusion between the different pause/resume verbs).
 
 

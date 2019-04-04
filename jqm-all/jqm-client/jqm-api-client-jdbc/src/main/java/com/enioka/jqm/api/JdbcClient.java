@@ -175,14 +175,25 @@ final class JdbcClient implements JqmClient
         }
         runRequest.setParameters(runRequest.getParameters()); // This will validate parameters.
 
-        DbConn cnx = getDbSession();
+        DbConn cnx = null;
+        try
+        {
+            cnx = getDbSession();
+            return enqueueWithCnx(runRequest, cnx);
+        }
+        finally
+        {
+            closeQuietly(cnx);
+        }
+    }
 
+    private int enqueueWithCnx(JobRequest runRequest, DbConn cnx)
+    {
         // New schedule?
         if (runRequest.getRecurrence() != null && !runRequest.getRecurrence().trim().isEmpty())
         {
             int res = createSchedule(runRequest, cnx);
             cnx.commit();
-            cnx.close();
             return res;
         }
 
@@ -217,13 +228,11 @@ final class JdbcClient implements JqmClient
             {
                 jqmlogger.error(
                         "There are multiple Job definition named " + runRequest.getApplicationName() + ". Inconsistent configuration.");
-                closeQuietly(cnx);
                 throw new JqmInvalidRequestException("There are multiple Job definition named " + runRequest.getApplicationName());
             }
             catch (NoResultException ex)
             {
                 jqmlogger.error("Job definition named " + runRequest.getApplicationName() + " does not exist");
-                closeQuietly(cnx);
                 throw new JqmInvalidRequestException("no job definition named " + runRequest.getApplicationName());
             }
         }
@@ -249,7 +258,6 @@ final class JdbcClient implements JqmClient
         Integer existing = highlanderMode(jobDef, cnx);
         if (existing != null)
         {
-            closeQuietly(cnx);
             jqmlogger.trace("JI won't actually be enqueued because a job in highlander mode is currently submitted: " + existing);
             return existing;
         }
@@ -266,11 +274,18 @@ final class JdbcClient implements JqmClient
         prms.putAll(runRequest.getParameters());
 
         // On which queue?
-        Integer queue_id;
+        Integer queue_id = null;
         if (runRequest.getQueueName() != null)
         {
             // use requested key if given.
-            queue_id = cnx.runSelectSingle("q_select_by_key", 1, Integer.class, runRequest.getQueueName());
+            try
+            {
+                queue_id = cnx.runSelectSingle("q_select_by_key", 1, Integer.class, runRequest.getQueueName());
+            }
+            catch (NoResultException e)
+            {
+                throw new JqmInvalidRequestException("Requested queue " + runRequest.getQueueName() + " does not exist", e);
+            }
         }
         else if (sj != null && sj.getQueue() != null)
         {
@@ -327,10 +342,6 @@ final class JdbcClient implements JqmClient
         catch (Exception e)
         {
             throw new JqmClientException("Could not create new JobInstance", e);
-        }
-        finally
-        {
-            closeQuietly(cnx);
         }
     }
 
@@ -1356,7 +1367,7 @@ final class JdbcClient implements JqmClient
             ResultSet rs = cnx.runRawSelect(q, paginatedParameters.toArray());
             while (rs.next())
             {
-                com.enioka.jqm.api.JobInstance tmp = getJob(rs);
+                com.enioka.jqm.api.JobInstance tmp = getJob(rs, cnx);
                 res.put(tmp.getId(), tmp);
             }
             rs.close();
@@ -1425,7 +1436,7 @@ final class JdbcClient implements JqmClient
         }
     }
 
-    private com.enioka.jqm.api.JobInstance getJob(ResultSet rs) throws SQLException
+    private com.enioka.jqm.api.JobInstance getJob(ResultSet rs, DbConn cnx) throws SQLException
     {
         com.enioka.jqm.api.JobInstance res = new com.enioka.jqm.api.JobInstance();
 
@@ -1433,9 +1444,9 @@ final class JdbcClient implements JqmClient
         // res.setApplication(rs.getString(2));
         res.setApplicationName(rs.getString(3));
         res.setEmail(rs.getString(5));
-        res.setEndDate(getCal(rs, 6));
-        res.setEnqueueDate(getCal(rs, 7));
-        res.setBeganRunningDate(getCal(rs, 8));
+        res.setEndDate(cnx.getCal(rs, 6));
+        res.setEnqueueDate(cnx.getCal(rs, 7));
+        res.setBeganRunningDate(cnx.getCal(rs, 8));
         res.setHighlander(rs.getBoolean(9));
         res.setApplication(rs.getString(10));
         res.setKeyword1(rs.getString(11));
@@ -1462,20 +1473,9 @@ final class JdbcClient implements JqmClient
         res.setFromSchedule(rs.getBoolean(31));
         res.setPriority(rs.getInt(32) > 0 ? rs.getInt(32) : null);
 
-        res.setRunAfter(getCal(rs, 33));
+        res.setRunAfter(cnx.getCal(rs, 33));
 
         return res;
-    }
-
-    private Calendar getCal(ResultSet rs, int colIdx) throws SQLException
-    {
-        Calendar c = null;
-        if (rs.getTimestamp(colIdx) != null)
-        {
-            c = Calendar.getInstance();
-            c.setTimeInMillis(rs.getTimestamp(colIdx).getTime());
-        }
-        return c;
     }
 
     @Override

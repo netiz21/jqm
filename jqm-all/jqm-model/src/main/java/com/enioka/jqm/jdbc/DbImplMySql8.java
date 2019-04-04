@@ -1,12 +1,11 @@
 package com.enioka.jqm.jdbc;
 
-import java.io.Console;
-import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -14,10 +13,11 @@ import java.util.Properties;
 import com.enioka.jqm.model.JobInstance;
 import com.enioka.jqm.model.Queue;
 
-public class DbImplMySql extends DbAdapter
+/**
+ * Should work on MySQL 8+ and MariaDB 10.3+. These versions have introduced persistent AUTO_INCREMENT high water mark.
+ */
+public class DbImplMySql8 extends DbAdapter
 {
-    private String sequenceSql, sequenceSqlRetrieval;
-
     @Override
     public void prepare(Properties p, Connection cnx)
     {
@@ -25,9 +25,6 @@ public class DbImplMySql extends DbAdapter
 
         // We do NOT want to use paginateQuery on each poll query as we want polling to be as painless as possible, so we pre-paginate it.
         queries.put("ji_select_poll", queries.get("ji_select_poll") + " LIMIT ?");
-
-        sequenceSqlRetrieval = adaptSql("SELECT next FROM __T__JQM_SEQUENCE WHERE name = ?");
-        sequenceSql = adaptSql("UPDATE __T__JQM_SEQUENCE SET next = next + 1 WHERE name = ?");
     }
 
     @Override
@@ -37,7 +34,8 @@ public class DbImplMySql extends DbAdapter
         {
             return "";
         }
-        return sql.replace("MEMORY TABLE", "TABLE").replace("JQM_PK.nextval", "?").replace(" DOUBLE", " DOUBLE PRECISION")
+        return sql.replace("MEMORY TABLE", "TABLE").replace("ID INTEGER NOT NULL", "ID INTEGER NOT NULL AUTO_INCREMENT")
+                .replace("JQM_PK.nextval", "NULL").replace(" DOUBLE", " DOUBLE PRECISION")
                 .replace("UNIX_MILLIS()", "ROUND(UNIX_TIMESTAMP(CURTIME(4)) * 1000)").replace("IN(UNNEST(?))", "IN(?)")
                 .replace("CURRENT_TIMESTAMP - 1 MINUTE", "(UNIX_TIMESTAMP() - 60)")
                 .replace("CURRENT_TIMESTAMP - ? SECOND", "(NOW() - INTERVAL ? SECOND)").replace("FROM (VALUES(0))", "FROM DUAL")
@@ -49,18 +47,10 @@ public class DbImplMySql extends DbAdapter
     @Override
     public boolean compatibleWith(DatabaseMetaData product) throws SQLException
     {
-        return (product.getDatabaseProductName().contains("MySQL")
-                && ((product.getDatabaseMajorVersion() == 5 && product.getDatabaseMinorVersion() >= 6)
-                        || product.getDatabaseMajorVersion() > 5))
-                || (product.getDatabaseProductName().contains("MariaDB") && product.getDatabaseMajorVersion() >= 10);
-    }
-
-    @Override
-    public List<String> preSchemaCreationScripts()
-    {
-        List<String> res = new ArrayList<>();
-        res.add("/sql/mysql.sql");
-        return res;
+        return (product.getDatabaseProductName().contains("MySQL") && (product.getDatabaseMajorVersion() >= 8))
+                || (product.getDatabaseProductName().contains("MariaDB")
+                        && ((product.getDatabaseMajorVersion() == 10 && product.getDatabaseMinorVersion() >= 3)
+                                || (product.getDatabaseMajorVersion() > 10)));
     }
 
     @Override
@@ -116,39 +106,6 @@ public class DbImplMySql extends DbAdapter
             {
                 throw new DatabaseException("Mismatch: count of list parameters and of IN clauses is different.");
             }
-        }
-
-        // Manually generate a new ID for INSERT orders. (with one exception - history inserts do not need a generated ID)
-        if (!q.sqlText.startsWith("INSERT INTO") || q.queryKey.startsWith("history_insert"))
-        {
-            return;
-        }
-        PreparedStatement s = null;
-        PreparedStatement s2 = null;
-        try
-        {
-            s = cnx.prepareStatement(sequenceSql);
-            s.setString(1, "MAIN");
-            s.executeUpdate();
-
-            s2 = cnx.prepareStatement(sequenceSqlRetrieval);
-            s2.setString(1, "MAIN");
-            ResultSet rs = s2.executeQuery();
-            if (!rs.next())
-            {
-                throw new NoResultException("The query returned zero rows when one was expected.");
-            }
-            q.preGeneratedKey = rs.getInt(1);
-            q.parameters.add(0, q.preGeneratedKey);
-        }
-        catch (SQLException e)
-        {
-            throw new DatabaseException(q.sqlText + " - " + sequenceSql + " - while fetching new ID from table sequence", e);
-        }
-        finally
-        {
-            DbHelper.closeQuietly(s);
-            DbHelper.closeQuietly(s2);
         }
     }
 
